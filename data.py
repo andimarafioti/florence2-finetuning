@@ -8,7 +8,7 @@ class DocVQADataset(Dataset):
     def __init__(self, data):
         self.data = data
         self.transform = Compose([
-            Resize((384, 384)),  # Resize to 384x384 as done for pretraining in paper
+            Resize((768, 768)),  # Resize to 768x768 as done for pretraining in paper
             ToTensor(),
         ])
 
