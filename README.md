@@ -17,9 +17,9 @@ uv pip install -U flash-attn --no-build-isolation
 
 ## Get the data
 
-For this experiment, I will use DocVQA. I already had DocVQA in my machine, but if you don't have it you can get [it here](https://www.docvqa.org/datasets/docvqa).
+For this experiment, I will use DocVQA. Our team at Hugging Face already uploaded a version to the hub, so you can use it directly.
 
-My dataset is already preprocessed for easy processing. I saved it with arrow files and it contains the images. After loading it with HF's dataset library, it looks like this:
+The dataset is already preprocessed for easy processing. After loading it with HF's dataset library, it looks like this:
 
 DatasetDict({
     train: Dataset({
