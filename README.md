@@ -1,11 +1,11 @@
-# florence2-finetuning
-Quick exploration into fine tuning florence 2
+# Florence2-Finetuning
+A quick exploration into fine-tuning Florence-2 on the DocVQA dataset.
 
 ## Installation
 
-I'm using UV to manage packages. UV is an extremely fast Python package installer and resolver, written in Rust. Get [it here](https://github.com/astral-sh/uv/).
+We use UV to manage packages. UV is an extremely fast Python package installer and resolver, written in Rust. You can get [it here](https://github.com/astral-sh/uv/).
 
-To get started, do:
+To get started, run the following commands:
 
 ```bash
 uv venv
@@ -13,7 +13,7 @@ source .venv/bin/activate
 uv install requirements.txt
 ```
 
-If you have issues with flass-attn, this fixed it for me:
+If you encounter issues with flash-attn, you can fix it with the following command:
 
 ```bash
 uv pip install -U flash-attn --no-build-isolation
@@ -21,9 +21,18 @@ uv pip install -U flash-attn --no-build-isolation
 
 ## Get the data
 
-For this experiment, I will use DocVQA. Our team at Hugging Face already uploaded a version to the hub, so you can use it directly.
+For this experiment, we use the DocVQA dataset. Our team at Hugging Face has already uploaded a version to the hub, so you can use it directly.
 
-The dataset is already preprocessed for easy processing. After loading it with HF's dataset library, it looks like this:
+The dataset is preprocessed for easy handling. After loading it with HF's dataset library, it looks like this:
+
+```python
+from datasets import load_dataset
+
+data = load_dataset('HuggingFaceM4/DocumentVQA')
+
+print(data)
+```
+Output:
 
 ```python
 DatasetDict({
@@ -44,7 +53,7 @@ DatasetDict({
 
 ## Hacking Florence-2 code
 
-In order to be able to finetune Florence-2, we will need to go into the cached file we downloaded when we got the model and modify the class `Florence2Seq2SeqLMOutput`. In my installation, this was found under: 
+To fine-tune Florence-2, you need to modify the `Florence2Seq2SeqLMOutput` class in the cached file downloaded when you first got the model. In my installation, this was found under:
 
 ```bash
 /admin/home/andres_marafioti/.cache/huggingface/modules/transformers_modules/microsoft/Florence-2-base/a2f0be72f9e50b3183c8c2c28ff481bd837320f5/modeling_florence2.py
@@ -122,8 +131,9 @@ class Florence2Seq2SeqLMOutput(ModelOutput):
     image_hidden_states: Optional[Tuple[torch.FloatTensor, ...]] = None
 ```
 
-The main changes we are doing are:
-- Adding the loss parameter
-- Adding the logits parameter
-- Adding the image_hidden_states parameter
+Changes Made:
+- Added the loss parameter.
+- Added the logits parameter.
+- Added the image_hidden_states parameter.
 
+This modification enables the fine-tuning of the Florence-2 model for the DocVQA task.

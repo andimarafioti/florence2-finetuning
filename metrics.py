@@ -1,5 +1,6 @@
-import Levenshtein
 import logging
+
+import Levenshtein
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)

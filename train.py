@@ -1,10 +1,11 @@
-from datasets import load_dataset
-import torch
-from torch.utils.data import DataLoader, Subset, random_split
-from transformers import AutoProcessor, AutoModelForCausalLM, AdamW, get_scheduler
-from tqdm import tqdm
-import random
 import os
+
+import torch
+from datasets import load_dataset
+from torch.utils.data import DataLoader
+from tqdm import tqdm
+from transformers import (AdamW, AutoModelForCausalLM, AutoProcessor,
+                          get_scheduler)
 
 from data import DocVQADataset
 

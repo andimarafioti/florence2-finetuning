@@ -1,6 +1,6 @@
 import torch
 from torch.utils.data import Dataset
-from torchvision.transforms import Resize, ToTensor, Normalize, Compose, Lambda
+from torchvision.transforms import Compose, Resize, ToTensor
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

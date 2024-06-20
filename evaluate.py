@@ -1,18 +1,15 @@
-import torch.multiprocessing as mp
-from transformers import AutoProcessor, AutoModelForCausalLM
-from datasets import load_dataset
-import Levenshtein
 import logging
-from tqdm import tqdm
-from data import DocVQADataset
-import torch
-from torch.utils.data import DataLoader, Subset
 import random
 
-from metrics import average_normalized_levenshtein_similarity 
+import torch
+from datasets import load_dataset
+from torch.utils.data import DataLoader, Subset
+from tqdm import tqdm
+from transformers import AutoModelForCausalLM, AutoProcessor
 
-# Set the multiprocessing start method to 'spawn'
-# mp.set_start_method('spawn', force=True)
+from data import DocVQADataset
+from metrics import average_normalized_levenshtein_similarity
+
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -20,8 +17,8 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 data = load_dataset("HuggingFaceM4/DocumentVQA")
 
 # Load the model and processor
-model = AutoModelForCausalLM.from_pretrained("microsoft/Florence-2-base", trust_remote_code=True).to(device)
-processor = AutoProcessor.from_pretrained("microsoft/Florence-2-base", trust_remote_code=True)
+model = AutoModelForCausalLM.from_pretrained("microsoft/Florence-2-base-ft", trust_remote_code=True).to(device)
+processor = AutoProcessor.from_pretrained("microsoft/Florence-2-base-ft", trust_remote_code=True)
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -53,7 +50,7 @@ def collate_fn(batch):
     return inputs, answers
 
 # Create DataLoader
-batch_size = 16  # Adjust the batch size based on your GPU memory
+batch_size = 4  # Adjust the batch size based on your GPU memory
 num_workers = 0  # Number of worker processes to use for data loading
 prefetch_factor = None  # Number of batches to prefetch
 
@@ -87,6 +84,8 @@ def evaluate_model(test_loader):
         for generated_text, answers in zip(generated_texts, batch_answers):
             parsed_answer = processor.post_process_generation(generated_text, task=task_prompt, image_size=(inputs["pixel_values"].shape[-2], inputs["pixel_values"].shape[-1]))
             predicted_answers.append(parsed_answer[task_prompt])
+            print("Pred:", parsed_answer[task_prompt])
+            print("GT:", answers)
             ground_truth.append(answers)
 
     avg_levenshtein_similarity = average_normalized_levenshtein_similarity(ground_truth, predicted_answers)

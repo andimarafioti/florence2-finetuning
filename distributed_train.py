@@ -1,15 +1,20 @@
-from datasets import load_dataset
+import os
+from functools import partial
+
+import friendlywords as fw
 import torch
 import torch.distributed as dist
 import torch.multiprocessing as mp
+from datasets import load_dataset
 from torch.nn.parallel import DistributedDataParallel as DDP
-from transformers import AutoProcessor, AutoModelForCausalLM, AdamW, get_scheduler
-from tqdm import tqdm
-from torch.utils.data import DataLoader, Subset
+from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
-import os
-from functools import partial
+from tqdm import tqdm
+from transformers import (AdamW, AutoModelForCausalLM, AutoProcessor,
+                          get_scheduler)
+
 from data import DocVQADataset
+
 
 def setup(rank, world_size):
     os.environ['MASTER_ADDR'] = 'localhost'
@@ -37,13 +42,14 @@ def create_data_loaders(train_dataset, val_dataset, batch_size, num_workers, ran
 def train_model(rank, world_size, epochs=3, lr=5e-5):
     setup(rank, world_size)
     device = torch.device(f"cuda:{rank}")
+    run_name = fw.generate(2, separator='_')
 
     # Load the dataset
     data = load_dataset("HuggingFaceM4/DocumentVQA")
     
     # Load the model and processor
-    model = AutoModelForCausalLM.from_pretrained("microsoft/Florence-2-base", trust_remote_code=True).to(device)
-    processor = AutoProcessor.from_pretrained("microsoft/Florence-2-base", trust_remote_code=True)
+    model = AutoModelForCausalLM.from_pretrained("microsoft/Florence-2-large-ft", trust_remote_code=True).to(device)
+    processor = AutoProcessor.from_pretrained("microsoft/Florence-2-large-ft", trust_remote_code=True)
     model = DDP(model, device_ids=[rank])
     
     # Create datasets
@@ -51,7 +57,7 @@ def train_model(rank, world_size, epochs=3, lr=5e-5):
     val_dataset = DocVQADataset(data['validation'])
 
     # Create DataLoaders
-    batch_size = 16
+    batch_size = 8
     num_workers = 4
     train_loader, val_loader = create_data_loaders(train_dataset, val_dataset, batch_size, num_workers, rank, world_size, processor, device)
 
@@ -111,7 +117,7 @@ def train_model(rank, world_size, epochs=3, lr=5e-5):
 
         # Save model checkpoint
         if rank == 0:  # Only the main process saves the checkpoint
-            output_dir = f"./model_checkpoints/version{2}/epoch_{epoch+1}"
+            output_dir = f"./model_checkpoints/{run_name}/epoch_{epoch+1}"
             os.makedirs(output_dir, exist_ok=True)
             model.module.save_pretrained(output_dir)
             processor.save_pretrained(output_dir)
