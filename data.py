@@ -1,16 +1,11 @@
 import torch
 from torch.utils.data import Dataset
-from torchvision.transforms import Compose, Resize, ToTensor
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class DocVQADataset(Dataset):
     def __init__(self, data):
         self.data = data
-        self.transform = Compose([
-            Resize((768, 768)),  # Resize to 768x768 as done for pretraining in paper
-            ToTensor(),
-        ])
 
     def __len__(self):
         return len(self.data)
@@ -32,5 +27,4 @@ class DocVQADataset(Dataset):
         image = example['image']  # The image is already a PIL Image object
         if image.mode != "RGB":
             image = image.convert("RGB")
-        image = self.transform(image)
         return question, answers, image
