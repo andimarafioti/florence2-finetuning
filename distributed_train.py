@@ -39,7 +39,7 @@ def train_model(rank, world_size, epochs=3, lr=5e-5):
     device = torch.device(f"cuda:{rank}")
 
     # Load the dataset
-    data = load_dataset('/fsx/m4/datasets/HuggingFaceM4___document_vqa/default/0.0.0/f5bf0799bd100863')
+    data = load_dataset("HuggingFaceM4/DocumentVQA")
     
     # Load the model and processor
     model = AutoModelForCausalLM.from_pretrained("microsoft/Florence-2-base", trust_remote_code=True).to(device)
