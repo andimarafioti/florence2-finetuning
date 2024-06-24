@@ -1,5 +1,10 @@
-# Florence2-Finetuning
-A quick exploration into fine-tuning Florence-2 on the DocVQA dataset.
+# Fine-tuning Florence-2 - Microsoft's Cutting-edge Vision Language Models
+Florence 2, released by Microsoft in June 2024, is a foundation vision-language model. This model is very attractive because of its small size (0.2B and 0.7B) and strong performance on a variety of computer vision and vision-language tasks.
+
+Florence supports captioning, object detection, OCR, and more out of the box. However, your task might not be supported, or you might need to control the model's output for your task. That's when you will need to fine-tune the model.
+
+In this repository, we present code to fine tune Florence on [DocVQA](https://www.docvqa.org/) or [The Cauldron](https://huggingface.co/datasets/HuggingFaceM4/the_cauldron).
+
 
 ## Installation
 
@@ -66,3 +71,31 @@ alternative_model = AutoModelForCausalLM.from_pretrained(
 ```
 
 We opened PRs with the necessary fixes on all the models from microsoft, so if you want to use a different one just look for the revision we created.
+
+## Single GPU training
+
+To train with just one GPU, you can simply run:
+
+```bash
+python train.py
+```
+
+It will automatically train on the DocVQA dataset. Training on the cauldron using just one GPU is not recommended.
+
+## Distributed training
+
+The `distributed_train.py` script allows you to train the Florence-2 model using distributed data parallelism, which can significantly speed up the training process when using multiple GPUs. Below are the steps to use this script:
+
+```bash
+python distributed_train.py --dataset <dataset_name> --epochs <num_epochs> --eval_steps <evaluation_steps>
+```
+
+Example:
+
+```bash
+python distributed_train.py --dataset docvqa --epochs 10 --eval_steps 1000
+```
+
+- dataset_name: Name of the dataset to use (docvqa or cauldron).
+- num_epochs: Number of epochs to train (default is 10).
+- evaluation_steps: Frequency of evaluation during training (default is 10000 steps).
