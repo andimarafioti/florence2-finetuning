@@ -53,6 +53,9 @@ class TheCauldronDataset(BaseDataset):
         self.images_df, self.texts_df = self.load_all_configs(split)
         self.task_prompt = "<VQA>"
 
+    def __len__(self):
+        return len(self.texts_df)
+    
     def load_config(self, config_name, split):
         print(f"Loading config: {config_name}")
         dataset = load_dataset("HuggingFaceM4/the_cauldron", config_name, split=split)
@@ -83,7 +86,7 @@ class TheCauldronDataset(BaseDataset):
         return df_images, df_texts
 
     def load_all_configs(self, split):
-        cauldron_config_names = get_dataset_config_names("HuggingFaceM4/the_cauldron")[:5]
+        cauldron_config_names = get_dataset_config_names("HuggingFaceM4/the_cauldron")
 
         images_dfs = []
         texts_dfs = []

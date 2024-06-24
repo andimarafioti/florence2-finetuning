@@ -1,7 +1,6 @@
 import os
 
 import torch
-from datasets import load_dataset
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import (AdamW, AutoModelForCausalLM, AutoProcessor,
@@ -12,15 +11,12 @@ from data import DocVQADataset
 # Set device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# Load the dataset
-data = load_dataset("HuggingFaceM4/DocumentVQA")
-
 # Load the model and processor
 model = AutoModelForCausalLM.from_pretrained(
-    "microsoft/Florence-2-base", trust_remote_code=True, revision="refs/pr/6"
+    "microsoft/Florence-2-base-ft", trust_remote_code=True, revision="refs/pr/6"
 ).to(device)
 processor = AutoProcessor.from_pretrained(
-    "microsoft/Florence-2-base", trust_remote_code=True, revision="refs/pr/6"
+    "microsoft/Florence-2-base-ft", trust_remote_code=True, revision="refs/pr/6"
 )
 
 
