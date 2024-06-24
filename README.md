@@ -58,6 +58,11 @@ To fine-tune Florence-2, we needed to modify the `Florence2Seq2SeqLMOutput` clas
 
 ```python
 model = AutoModelForCausalLM.from_pretrained(
+        "andito/Florence-2-large-ft", trust_remote_code=True
+    ).to(device)
+alternative_model = AutoModelForCausalLM.from_pretrained(
         "microsoft/Florence-2-large-ft", trust_remote_code=True, revision="refs/pr/10"
     ).to(device)
 ```
+
+We opened PRs with the necessary fixes on all the models from microsoft, so if you want to use a different one just look for the revision we created.
