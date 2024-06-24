@@ -57,9 +57,9 @@ DatasetDict({
 })
 ```
 
-## Fixing Florence-2 code
+## Updating Florence-2 for Fine-Tuning
 
-To fine-tune Florence-2, we needed to modify the `Florence2Seq2SeqLMOutput` class. Our PRs are open and the code already links to them, in general you need to pass the revision to the model call:
+To fine-tune Florence-2, we had to make some modifications to the `Florence2Seq2SeqLMOutput` class. We have submitted pull requests (PRs) with these changes, and you can find links to them in the code. To use the revised version, you need to specify the appropriate revision when loading the model:
 
 ```python
 model = AutoModelForCausalLM.from_pretrained(
@@ -70,7 +70,7 @@ alternative_model = AutoModelForCausalLM.from_pretrained(
     ).to(device)
 ```
 
-We opened PRs with the necessary fixes on all the models from microsoft, so if you want to use a different one just look for the revision we created.
+We have submitted PRs for the necessary fixes across all models from Microsoft. If you prefer to use a different model, please refer to the corresponding revision we created.
 
 ## Single GPU training
 
