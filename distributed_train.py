@@ -68,7 +68,7 @@ def create_data_loaders(
     return train_loader, val_loader
 
 
-def train_model(rank, world_size, dataset_name, epochs=10, lr=1e-6):
+def train_model(rank, world_size, dataset_name, epochs=10, lr=1e-6, eval_steps=10000):
     setup(rank, world_size)
     device = torch.device(f"cuda:{rank}")
     run_name = fw.generate(2, separator="_")
@@ -79,22 +79,19 @@ def train_model(rank, world_size, dataset_name, epochs=10, lr=1e-6):
         val_dataset = DocVQADataset(split = 'validation')
     elif dataset_name == "cauldron":
         train_dataset = TheCauldronDataset(split = 'train')
-        val_dataset = TheCauldronDataset(split = 'validation')
+        val_dataset = DocVQADataset(split = 'validation')
     else:
         raise ValueError(f"Unknown dataset: {dataset_name}")
     
     # Load the model and processor
     model = AutoModelForCausalLM.from_pretrained(
-        "microsoft/Florence-2-large-ft", trust_remote_code=True, revision="refs/pr/10"
+        "andito/Florence-2-large-ft", trust_remote_code=True
     ).to(device)
     processor = AutoProcessor.from_pretrained(
-        "microsoft/Florence-2-large-ft", trust_remote_code=True, revision="refs/pr/10"
+        "andito/Florence-2-large-ft", trust_remote_code=True
     )
     model = DDP(model, device_ids=[rank])
 
-    # Create datasets
-    train_dataset = DocVQADataset("train")
-    val_dataset = DocVQADataset("validation")
 
     # Create DataLoaders
     batch_size = 8
@@ -118,6 +115,7 @@ def train_model(rank, world_size, dataset_name, epochs=10, lr=1e-6):
         num_warmup_steps=0,
         num_training_steps=num_training_steps,
     )
+    global_step = 0
 
     for epoch in range(epochs):
         # Training phase
@@ -149,38 +147,40 @@ def train_model(rank, world_size, dataset_name, epochs=10, lr=1e-6):
             optimizer.zero_grad()
 
             train_loss += loss.item()
+            global_step += 1
 
+            if global_step % eval_steps == 0:
+                # Evaluation phase
+                model.eval()
+                val_loss = 0
+                with torch.no_grad():
+                    for batch in tqdm(val_loader, desc=f"Evaluation at step {global_step}", position=rank):
+                        inputs, answers = batch
+
+                        # Prepare the input and target tensors
+                        input_ids = inputs["input_ids"].to(device)
+                        pixel_values = inputs["pixel_values"].to(device)
+                        labels = processor.tokenizer(
+                            text=answers,
+                            return_tensors="pt",
+                            padding=True,
+                            return_token_type_ids=False,
+                        ).input_ids.to(device)
+
+                        outputs = model(
+                            input_ids=input_ids, pixel_values=pixel_values, labels=labels
+                        )
+                        loss = outputs.loss
+
+                        val_loss += loss.item()
+
+                avg_val_loss = val_loss / len(val_loader)
+                print(f"Rank {rank} - Step {global_step} - Average Validation Loss: {avg_val_loss}")
+
+                model.train()
+                
         avg_train_loss = train_loss / len(train_loader)
         print(f"Rank {rank} - Average Training Loss: {avg_train_loss}")
-
-        # Validation phase
-        model.eval()
-        val_loss = 0
-        with torch.no_grad():
-            for batch in tqdm(
-                val_loader, desc=f"Validation Epoch {epoch + 1}/{epochs}", position=rank
-            ):
-                inputs, answers = batch
-
-                # Prepare the input and target tensors
-                input_ids = inputs["input_ids"].to(device)
-                pixel_values = inputs["pixel_values"].to(device)
-                labels = processor.tokenizer(
-                    text=answers,
-                    return_tensors="pt",
-                    padding=True,
-                    return_token_type_ids=False,
-                ).input_ids.to(device)
-
-                outputs = model(
-                    input_ids=input_ids, pixel_values=pixel_values, labels=labels
-                )
-                loss = outputs.loss
-
-                val_loss += loss.item()
-
-        avg_val_loss = val_loss / len(val_loader)
-        print(f"Rank {rank} - Average Validation Loss: {avg_val_loss}")
 
         # Save model checkpoint
         if rank == 0:  # Only the main process saves the checkpoint

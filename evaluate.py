@@ -105,6 +105,8 @@ def evaluate_model(test_loader):
             )
             predicted_answers.append(parsed_answer[task_prompt].replace("<pad>", ""))
             ground_truth.append(answers)
+            # print("Ans:", parsed_answer[task_prompt])
+            # print("GT:", answers)
 
     avg_levenshtein_similarity = average_normalized_levenshtein_similarity(
         ground_truth, predicted_answers
