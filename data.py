@@ -2,8 +2,7 @@ import concurrent.futures
 import io
 
 import pandas as pd
-from datasets import (get_dataset_config_names,
-                      load_dataset)
+from datasets import get_dataset_config_names, load_dataset
 from PIL import Image
 from torch.utils.data import Dataset
 from tqdm import tqdm
