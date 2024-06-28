@@ -79,7 +79,7 @@ def train_model(rank, world_size, dataset_name, epochs=10, lr=1e-6, eval_steps=1
         val_dataset = DocVQADataset(split = 'validation')
     elif dataset_name == "cauldron":
         train_dataset = TheCauldronDataset(split = 'train')
-        val_dataset = DocVQADataset(split = 'validation')
+        val_dataset = DocVQADataset(split = 'validation') # evaluate on DocVQA since The Cauldron has no val set
     else:
         raise ValueError(f"Unknown dataset: {dataset_name}")
     
