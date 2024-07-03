@@ -13,7 +13,8 @@ from tqdm import tqdm
 from transformers import (AdamW, AutoModelForCausalLM, AutoProcessor,
                           get_scheduler)
 
-from data import DocVQADataset, TheCauldronDataset
+from data import DocVQADataset, TheCauldronDataset, VQAInstructDataset
+from peft import LoraConfig, get_peft_model
 
 
 def setup(rank, world_size):
@@ -30,7 +31,7 @@ def cleanup():
 def collate_fn(batch, processor, device):
     questions, answers, images = zip(*batch)
     inputs = processor(
-        text=list(questions), images=list(images), return_tensors="pt", padding=True
+        text=list(questions), images=list(images), return_tensors="pt", padding=True, truncation=True
     ).to(device)
     return inputs, answers
 
@@ -68,7 +69,7 @@ def create_data_loaders(
     return train_loader, val_loader
 
 
-def train_model(rank, world_size, dataset_name, epochs=10, lr=1e-6, eval_steps=10000):
+def train_model(rank, world_size, dataset_name, use_lora=False, epochs=10, lr=1e-6, eval_steps=100):
     setup(rank, world_size)
     device = torch.device(f"cuda:{rank}")
     run_name = fw.generate(2, separator="_")
@@ -80,6 +81,9 @@ def train_model(rank, world_size, dataset_name, epochs=10, lr=1e-6, eval_steps=1
     elif dataset_name == "cauldron":
         train_dataset = TheCauldronDataset(split = 'train')
         val_dataset = DocVQADataset(split = 'validation') # evaluate on DocVQA since The Cauldron has no val set
+    elif dataset_name == 'vqainstruct':
+        train_dataset = VQAInstructDataset(split = 'train')
+        val_dataset = DocVQADataset(split = 'validation') # evaluate on DocVQA since VQAInstruct has no val set
     else:
         raise ValueError(f"Unknown dataset: {dataset_name}")
     
@@ -90,11 +94,31 @@ def train_model(rank, world_size, dataset_name, epochs=10, lr=1e-6, eval_steps=1
     processor = AutoProcessor.from_pretrained(
         "andito/Florence-2-large-ft", trust_remote_code=True
     )
+
+    if use_lora:
+        TARGET_MODULES = [
+            "q_proj", "o_proj", "k_proj", "v_proj", 
+            "linear", "Conv2d", "lm_head", "fc2"
+        ]
+
+        config = LoraConfig(
+            r=8,
+            lora_alpha=8,
+            target_modules=TARGET_MODULES,
+            task_type="CAUSAL_LM",
+            lora_dropout=0.05,
+            bias="none",
+            inference_mode=False,
+            use_rslora=True,
+            init_lora_weights="gaussian",
+        )
+        model = get_peft_model(model, config)
+
     model = DDP(model, device_ids=[rank])
 
 
     # Create DataLoaders
-    batch_size = 8
+    batch_size = 10
     num_workers = 4
     train_loader, val_loader = create_data_loaders(
         train_dataset,
@@ -134,6 +158,7 @@ def train_model(rank, world_size, dataset_name, epochs=10, lr=1e-6, eval_steps=1
                 return_tensors="pt",
                 padding=True,
                 return_token_type_ids=False,
+                truncation=True,
             ).input_ids.to(device)
 
             outputs = model(
@@ -165,6 +190,7 @@ def train_model(rank, world_size, dataset_name, epochs=10, lr=1e-6, eval_steps=1
                             return_tensors="pt",
                             padding=True,
                             return_token_type_ids=False,
+                            truncation=True,
                         ).input_ids.to(device)
 
                         outputs = model(
@@ -194,13 +220,14 @@ def train_model(rank, world_size, dataset_name, epochs=10, lr=1e-6, eval_steps=1
 
 def main():
     parser = argparse.ArgumentParser(description="Train Florence-2 model on specified dataset")
-    parser.add_argument("--dataset", type=str, required=True, choices=["docvqa", "cauldron"], help="Dataset to train on")
+    parser.add_argument("--dataset", type=str, required=True, choices=["docvqa", "cauldron", "vqainstruct"], help="Dataset to train on")
+    parser.add_argument("--use-lora", action='store_true', help="Use LoRA if this flag is passed")
     args = parser.parse_args()
 
     world_size = torch.cuda.device_count()
     mp.spawn(
         train_model,
-        args=(world_size, args.dataset),
+        args=(world_size, args.dataset, args.use_lora),
         nprocs=world_size,
         join=True
     )
