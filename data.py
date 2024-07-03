@@ -2,11 +2,11 @@ import concurrent.futures
 import io
 
 import pandas as pd
-from datasets import get_dataset_config_names, load_dataset
+from datasets import get_dataset_config_names, load_dataset, load_from_disk
 from PIL import Image
 from torch.utils.data import Dataset
 from tqdm import tqdm
-
+import random
 
 class BaseDataset(Dataset):
     def __init__(self, split):
@@ -31,7 +31,7 @@ class DocVQADataset(BaseDataset):
     def __init__(self, split):
         super().__init__(split)
         self.data = load_dataset("HuggingFaceM4/DocumentVQA", split=split)
-        self.task_prompt = "<DocVQA>"
+        self.task_prompt = "<VQA>"
 
     def __getitem__(self, idx):
         example = self.data[idx]
@@ -45,6 +45,29 @@ class DocVQADataset(BaseDataset):
             image = image.convert("RGB")
         return question, answers, image
     
+class VQAInstructDataset(BaseDataset):
+    def __init__(self, split, max_length=1024):
+        super().__init__(split)
+        self._max_length = max_length
+        self.vqa_data = load_from_disk("/fsx/m4/datasets/complete_single_img_vqa_instruct")
+        self.task_prompt = "<VQA>"
+
+    def __len__(self):
+        return len(self.vqa_data)
+    
+    def __getitem__(self, idx):
+        example = self.vqa_data[idx]
+        texts = random.choice(example['texts'])
+
+        question = self.task_prompt + texts["user"]
+        answer = texts["assistant"]
+
+        image = example['images']
+        
+        if image.mode != "RGB":
+            image = image.convert("RGB")
+
+        return question, answer, image
 
 class TheCauldronDataset(BaseDataset):
     def __init__(self, split):
