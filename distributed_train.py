@@ -39,7 +39,7 @@ def collate_fn(batch, processor, device):
 
 def create_data_loaders(
     train_dataset,
-    val_dataset,
+    val_datasets,
     batch_size,
     num_workers,
     rank,
@@ -50,7 +50,6 @@ def create_data_loaders(
     train_sampler = DistributedSampler(
         train_dataset, num_replicas=world_size, rank=rank
     )
-    val_sampler = DistributedSampler(val_dataset, num_replicas=world_size, rank=rank)
 
     train_loader = DataLoader(
         train_dataset,
@@ -59,15 +58,20 @@ def create_data_loaders(
         num_workers=num_workers,
         sampler=train_sampler,
     )
-    val_loader = DataLoader(
-        val_dataset,
-        batch_size=batch_size,
-        collate_fn=partial(collate_fn, processor=processor, device=device),
-        num_workers=num_workers,
-        sampler=val_sampler,
-    )
 
-    return train_loader, val_loader
+    val_loaders = {}
+    for name, val_dataset in val_datasets.items():
+        val_sampler = DistributedSampler(val_dataset, num_replicas=world_size, rank=rank)
+        val_loader = DataLoader(
+            val_dataset,
+            batch_size=batch_size,
+            collate_fn=partial(collate_fn, processor=processor, device=device),
+            num_workers=num_workers,
+            sampler=val_sampler,
+        )
+        val_loaders[name] = val_loader
+
+    return train_loader, val_loaders
 
 
 def train_model(rank, world_size, dataset_name, batch_size=6, use_lora=False, epochs=10, lr=1e-6, eval_steps=10, run_name=None):
@@ -91,13 +95,19 @@ def train_model(rank, world_size, dataset_name, batch_size=6, use_lora=False, ep
     # Load the dataset based on the dataset_name argument
     if dataset_name == "docvqa":
         train_dataset = DocVQADataset(split='train')
-        val_dataset = DocVQADataset(split='validation')
+        val_datasets = {"docvqa": DocVQADataset(split='validation')}
     elif dataset_name == "cauldron":
         train_dataset = TheCauldronDataset(split='train')
-        val_dataset = DocVQADataset(split='validation')  # evaluate on DocVQA since The Cauldron has no val set
+        val_datasets = {
+            "cauldron": TheCauldronDataset(split='validation'), 
+            "docvqa": DocVQADataset(split='validation')
+        }
     elif dataset_name == 'vqainstruct':
         train_dataset = VQAInstructDataset(split='train')
-        val_dataset = DocVQADataset(split='validation')  # evaluate on DocVQA since VQAInstruct has no val set
+        val_datasets = {
+            "vqainstruct": VQAInstructDataset(split='validation'), 
+            "docvqa": DocVQADataset(split='validation')
+        }
     else:
         raise ValueError(f"Unknown dataset: {dataset_name}")
 
@@ -132,9 +142,9 @@ def train_model(rank, world_size, dataset_name, batch_size=6, use_lora=False, ep
 
     # Create DataLoaders
     num_workers = 4
-    train_loader, val_loader = create_data_loaders(
+    train_loader, val_loaders = create_data_loaders(
         train_dataset,
-        val_dataset,
+        val_datasets,
         batch_size,
         num_workers,
         rank,
@@ -187,38 +197,41 @@ def train_model(rank, world_size, dataset_name, batch_size=6, use_lora=False, ep
             global_step += 1
 
             if global_step % eval_steps == 0:
+                if rank == 0:
+                    wandb.log({"step": global_step, "train_loss": train_loss / len(train_loader)})
+
                 # Evaluation phase
                 model.eval()
-                val_loss = 0
-                with torch.no_grad():
-                    for batch in tqdm(val_loader, desc=f"Evaluation at step {global_step}", position=rank):
-                        inputs, answers = batch
+                for val_name, val_loader in val_loaders.items():
+                    val_loss = 0
+                    with torch.no_grad():
+                        for batch in tqdm(val_loader, desc=f"Evaluation on {val_name} at step {global_step}", position=rank):
+                            inputs, answers = batch
 
-                        # Prepare the input and target tensors
-                        input_ids = inputs["input_ids"].to(device)
-                        pixel_values = inputs["pixel_values"].to(device)
-                        labels = processor.tokenizer(
-                            text=answers,
-                            return_tensors="pt",
-                            padding=True,
-                            return_token_type_ids=False,
-                            truncation=True,
-                        ).input_ids.to(device)
+                            # Prepare the input and target tensors
+                            input_ids = inputs["input_ids"].to(device)
+                            pixel_values = inputs["pixel_values"].to(device)
+                            labels = processor.tokenizer(
+                                text=answers,
+                                return_tensors="pt",
+                                padding=True,
+                                return_token_type_ids=False,
+                                truncation=True,
+                            ).input_ids.to(device)
 
-                        outputs = model(
-                            input_ids=input_ids, pixel_values=pixel_values, labels=labels
-                        )
-                        loss = outputs.loss
+                            outputs = model(
+                                input_ids=input_ids, pixel_values=pixel_values, labels=labels
+                            )
+                            loss = outputs.loss
 
-                        val_loss += loss.item()
+                            val_loss += loss.item()
 
-                avg_val_loss = val_loss / len(val_loader)
-                print(f"Rank {rank} - Step {global_step} - Average Validation Loss: {avg_val_loss}")
+                    avg_val_loss = val_loss / len(val_loader)
+                    print(f"Rank {rank} - Step {global_step} - Average Validation Loss ({val_name}): {avg_val_loss}")
 
-                # Log metrics to wandb
-                if rank == 0:
-                    wandb.log({"step": global_step, "val_loss": avg_val_loss})
-                    wandb.log({"step": global_step, "train_loss": train_loss / len(train_loader)})
+                    # Log metrics to wandb
+                    if rank == 0:
+                        wandb.log({f"{val_name}_val_loss": avg_val_loss, "step": global_step})
 
                 model.train()
 
