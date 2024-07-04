@@ -11,6 +11,7 @@ import random
 class BaseDataset(Dataset):
     def __init__(self, split):
         self._split = split
+        self.name = "BaseDataset"
         self.data = []
         self.task_prompt = ""
 
@@ -30,6 +31,7 @@ class BaseDataset(Dataset):
 class DocVQADataset(BaseDataset):
     def __init__(self, split):
         super().__init__(split)
+        self.name = "DocVQA"
         self.data = load_dataset("HuggingFaceM4/DocumentVQA", split=split)
         self.task_prompt = "<VQA>"
 
@@ -48,8 +50,19 @@ class DocVQADataset(BaseDataset):
 class VQAInstructDataset(BaseDataset):
     def __init__(self, split, max_length=1024):
         super().__init__(split)
+        self.name = "VQA-Instruct"
         self._max_length = max_length
         self.vqa_data = load_from_disk("/fsx/m4/datasets/complete_single_img_vqa_instruct")
+        split_actions = {
+                'train': lambda data: data.train_test_split(test_size=0.05, seed=42)['train'],
+                'validation': lambda data: data.train_test_split(test_size=0.05, seed=42)['test'].train_test_split(test_size=0.5, seed=42)['train'],
+                'test': lambda data: data.train_test_split(test_size=0.05, seed=42)['test'].train_test_split(test_size=0.5, seed=42)['test']
+            }
+
+        if split not in split_actions:
+            raise ValueError(f"Unknown split: {split}")
+
+        self.vqa_data = split_actions[split](self.vqa_data)
         self.task_prompt = "<VQA>"
 
     def __len__(self):
@@ -72,6 +85,7 @@ class VQAInstructDataset(BaseDataset):
 class TheCauldronDataset(BaseDataset):
     def __init__(self, split):
         super().__init__(split)
+        self.name = "The-Cauldron"
         self.images_df, self.texts_df = self.load_all_configs(split)
         self.task_prompt = "<VQA>"
 
