@@ -74,7 +74,7 @@ def create_data_loaders(
     return train_loader, val_loaders
 
 
-def train_model(rank, world_size, dataset_name, batch_size=6, use_lora=False, epochs=10, lr=1e-6, eval_steps=10, run_name=None):
+def train_model(rank, world_size, dataset_name, batch_size=6, use_lora=False, epochs=10, lr=1e-6, eval_steps=10, run_name=None, max_val_item_count=1000):
     setup(rank, world_size)
     device = torch.device(f"cuda:{rank}")
     if run_name is None:
@@ -205,7 +205,9 @@ def train_model(rank, world_size, dataset_name, batch_size=6, use_lora=False, ep
                 for val_name, val_loader in val_loaders.items():
                     val_loss = 0
                     with torch.no_grad():
+                        val_item_count = 0
                         for batch in tqdm(val_loader, desc=f"Evaluation on {val_name} at step {global_step}", position=rank):
+                            val_item_count += len(batch)
                             inputs, answers = batch
 
                             # Prepare the input and target tensors
@@ -225,8 +227,10 @@ def train_model(rank, world_size, dataset_name, batch_size=6, use_lora=False, ep
                             loss = outputs.loss
 
                             val_loss += loss.item()
+                            if val_item_count > max_val_item_count:
+                                break
 
-                    avg_val_loss = val_loss / len(val_loader)
+                    avg_val_loss = val_loss / val_item_count
                     print(f"Rank {rank} - Step {global_step} - Average Validation Loss ({val_name}): {avg_val_loss}")
 
                     # Log metrics to wandb
@@ -265,12 +269,13 @@ def main():
     parser.add_argument("--lr", type=float, default=1e-6, help="Learning rate")
     parser.add_argument("--eval-steps", type=int, default=1000, help="Number of steps between evaluations")
     parser.add_argument("--run-name", type=str, default=None, help="Run name for wandb")
+    parser.add_argument("--max-val-item-count", type=int, default=1000, help="Maximum number of items to evaluate on during validation")
     args = parser.parse_args()
 
     world_size = torch.cuda.device_count()
     mp.spawn(
         train_model,
-        args=(world_size, args.dataset, args.batch_size, args.use_lora, args.epochs, args.lr, args.eval_steps, args.run_name),
+        args=(world_size, args.dataset, args.batch_size, args.use_lora, args.epochs, args.lr, args.eval_steps, args.run_name, args.max_val_item_count),
         nprocs=world_size,
         join=True
     )
