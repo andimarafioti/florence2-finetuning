@@ -32,7 +32,7 @@ def cleanup():
 def collate_fn(batch, processor, device):
     questions, answers, images = zip(*batch)
     inputs = processor(
-        text=list(questions), images=list(images), return_tensors="pt", padding=True, truncation=True
+        text=list(questions), images=list(images), return_tensors="pt", padding=True, truncation=True, max_length=800
     ).to(device)
     return inputs, answers
 
@@ -64,7 +64,7 @@ def create_data_loaders(
         val_sampler = DistributedSampler(val_dataset, num_replicas=world_size, rank=rank)
         val_loader = DataLoader(
             val_dataset,
-            batch_size=batch_size,
+            batch_size=batch_size//2,
             collate_fn=partial(collate_fn, processor=processor, device=device),
             num_workers=num_workers,
             sampler=val_sampler,
@@ -141,7 +141,7 @@ def train_model(rank, world_size, dataset_name, batch_size=6, use_lora=False, ep
     model = DDP(model, device_ids=[rank])
 
     # Create DataLoaders
-    num_workers = 4
+    num_workers = 0
     train_loader, val_loaders = create_data_loaders(
         train_dataset,
         val_datasets,
@@ -181,6 +181,7 @@ def train_model(rank, world_size, dataset_name, batch_size=6, use_lora=False, ep
                 padding=True,
                 return_token_type_ids=False,
                 truncation=True,
+                max_length=800,
             ).input_ids.to(device)
 
             outputs = model(
@@ -198,7 +199,7 @@ def train_model(rank, world_size, dataset_name, batch_size=6, use_lora=False, ep
 
             if global_step % eval_steps == 0:
                 if rank == 0:
-                    wandb.log({"step": global_step, "train_loss": train_loss / len(train_loader)})
+                    wandb.log({"step": global_step, "train_loss": train_loss / (global_step*batch_size*world_size)})
 
                 # Evaluation phase
                 model.eval()
@@ -219,6 +220,7 @@ def train_model(rank, world_size, dataset_name, batch_size=6, use_lora=False, ep
                                 padding=True,
                                 return_token_type_ids=False,
                                 truncation=True,
+                                max_length=800,
                             ).input_ids.to(device)
 
                             outputs = model(
