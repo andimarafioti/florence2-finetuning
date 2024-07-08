@@ -73,6 +73,51 @@ def create_data_loaders(
 
     return train_loader, val_loaders
 
+def evaluate_model(rank, world_size, model, val_loaders, device, train_loss, processor, global_step, batch_size, max_val_item_count):
+    if rank == 0:
+        avg_train_loss = train_loss / (global_step*batch_size*world_size)
+        wandb.log({"step": global_step, "train_loss": avg_train_loss})
+        print(f"Rank {rank} - Average Training Loss: {avg_train_loss}")
+
+    # Evaluation phase
+    model.eval()
+    for val_name, val_loader in val_loaders.items():
+        val_loss = 0
+        with torch.no_grad():
+            val_item_count = 0
+            for batch in tqdm(val_loader, desc=f"Evaluation on {val_name} at step {global_step}", position=rank):
+                val_item_count += len(batch)
+                inputs, answers = batch
+
+                # Prepare the input and target tensors
+                input_ids = inputs["input_ids"].to(device)
+                pixel_values = inputs["pixel_values"].to(device)
+                labels = processor.tokenizer(
+                    text=answers,
+                    return_tensors="pt",
+                    padding=True,
+                    return_token_type_ids=False,
+                    truncation=True,
+                    max_length=800,
+                ).input_ids.to(device)
+
+                outputs = model(
+                    input_ids=input_ids, pixel_values=pixel_values, labels=labels
+                )
+                loss = outputs.loss
+
+                val_loss += loss.item()
+                if val_item_count > max_val_item_count:
+                    break
+
+        avg_val_loss = val_loss / val_item_count
+        print(f"Rank {rank} - Step {global_step} - Average Validation Loss ({val_name}): {avg_val_loss}")
+
+        # Log metrics to wandb
+        if rank == 0:
+            wandb.log({f"{val_name}_val_loss": avg_val_loss, "step": global_step})
+
+    model.train()
 
 def train_model(rank, world_size, dataset_name, batch_size=6, use_lora=False, epochs=10, lr=1e-6, eval_steps=10, run_name=None, max_val_item_count=1000):
     setup(rank, world_size)
@@ -90,6 +135,7 @@ def train_model(rank, world_size, dataset_name, batch_size=6, use_lora=False, ep
             "epochs": epochs,
             "learning_rate": lr,
             "eval_steps": eval_steps,
+            "world_size": world_size,
         })
 
     # Load the dataset based on the dataset_name argument
@@ -198,55 +244,14 @@ def train_model(rank, world_size, dataset_name, batch_size=6, use_lora=False, ep
             global_step += 1
 
             if global_step % eval_steps == 0:
-                if rank == 0:
-                    wandb.log({"step": global_step, "train_loss": train_loss / (global_step*batch_size*world_size)})
+                evaluate_model(rank, world_size, model, val_loaders, device, train_loss, processor, global_step, batch_size, max_val_item_count)
 
-                # Evaluation phase
-                model.eval()
-                for val_name, val_loader in val_loaders.items():
-                    val_loss = 0
-                    with torch.no_grad():
-                        val_item_count = 0
-                        for batch in tqdm(val_loader, desc=f"Evaluation on {val_name} at step {global_step}", position=rank):
-                            val_item_count += len(batch)
-                            inputs, answers = batch
-
-                            # Prepare the input and target tensors
-                            input_ids = inputs["input_ids"].to(device)
-                            pixel_values = inputs["pixel_values"].to(device)
-                            labels = processor.tokenizer(
-                                text=answers,
-                                return_tensors="pt",
-                                padding=True,
-                                return_token_type_ids=False,
-                                truncation=True,
-                                max_length=800,
-                            ).input_ids.to(device)
-
-                            outputs = model(
-                                input_ids=input_ids, pixel_values=pixel_values, labels=labels
-                            )
-                            loss = outputs.loss
-
-                            val_loss += loss.item()
-                            if val_item_count > max_val_item_count:
-                                break
-
-                    avg_val_loss = val_loss / val_item_count
-                    print(f"Rank {rank} - Step {global_step} - Average Validation Loss ({val_name}): {avg_val_loss}")
-
-                    # Log metrics to wandb
-                    if rank == 0:
-                        wandb.log({f"{val_name}_val_loss": avg_val_loss, "step": global_step})
-
-                model.train()
-
-        avg_train_loss = train_loss / len(train_loader)
-        print(f"Rank {rank} - Average Training Loss: {avg_train_loss}")
+        evaluate_model(rank, world_size, model, val_loaders, device, train_loss, processor, global_step, batch_size, max_val_item_count)
 
         # Log training loss to wandb
+        avg_train_loss = train_loss / len(train_loader)
         if rank == 0:
-            wandb.log({"epoch": epoch + 1, "train_loss": avg_train_loss})
+            wandb.log({"epoch": epoch + 1, "epoch_train_loss": avg_train_loss})
 
         # Save model checkpoint
         if rank == 0:  # Only the main process saves the checkpoint
