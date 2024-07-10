@@ -1,4 +1,6 @@
 # Fine-tuning Florence-2 - Microsoft's Cutting-edge Vision Language Models
+This codebase supports a [blog we published on Huggingface.co on June 24th!](https://huggingface.co/blog/finetune-florence2)
+
 Florence 2, released by Microsoft in June 2024, is a foundation vision-language model. This model is very attractive because of its small size (0.2B and 0.7B) and strong performance on a variety of computer vision and vision-language tasks.
 
 Florence supports captioning, object detection, OCR, and more out of the box. However, your task might not be supported, or you might need to control the model's output for your task. That's when you will need to fine-tune the model.
