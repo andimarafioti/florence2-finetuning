@@ -40,8 +40,8 @@ class DocVQADataset(BaseDataset):
         question = self.task_prompt + self.correct_casing_finqa(
             example["question"], True
         )
-        first_answer = example["answers"][0]
-        answers = self.correct_casing_finqa(first_answer)
+        first_answer = example["answers"]
+        answers = first_answer
         image = example["image"]  # The image is already a PIL Image object
         if image.mode != "RGB":
             image = image.convert("RGB")
@@ -52,7 +52,7 @@ class VQAInstructDataset(BaseDataset):
         super().__init__(split)
         self.name = "VQA-Instruct"
         self._max_length = max_length
-        self.vqa_data = load_from_disk("/fsx/m4/datasets/complete_single_img_vqa_instruct")
+        self.vqa_data = load_from_disk("HuggingFaceM4/Docmatix_single_images")
         split_actions = {
                 'train': lambda data: data.train_test_split(test_size=0.05, seed=42)['train'],
                 'validation': lambda data: data.train_test_split(test_size=0.05, seed=42)['test'].train_test_split(test_size=0.5, seed=42)['train'],
