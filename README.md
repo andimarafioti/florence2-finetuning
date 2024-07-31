@@ -89,13 +89,13 @@ It will automatically train on the DocVQA dataset. Training on the cauldron usin
 The `distributed_train.py` script allows you to train the Florence-2 model using distributed data parallelism, which can significantly speed up the training process when using multiple GPUs. Below are the steps to use this script:
 
 ```bash
-python distributed_train.py --dataset <dataset_name> --epochs <num_epochs> --eval_steps <evaluation_steps>
+python distributed_train.py --dataset <dataset_name> --epochs <num_epochs> --eval-steps <evaluation_steps>
 ```
 
 Example:
 
 ```bash
-python distributed_train.py --dataset docvqa --epochs 10 --eval_steps 1000
+python distributed_train.py --dataset docvqa --epochs 10 --eval-steps 1000
 ```
 
 - dataset_name: Name of the dataset to use (docvqa or cauldron).
