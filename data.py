@@ -40,7 +40,7 @@ class DocVQADataset(BaseDataset):
         question = self.task_prompt + self.correct_casing_finqa(
             example["question"], True
         )
-        first_answer = example["answers"]
+        first_answer = example["answers"][0]
         answers = first_answer
         image = example["image"]  # The image is already a PIL Image object
         if image.mode != "RGB":
