@@ -5,7 +5,7 @@ Florence 2, released by Microsoft in June 2024, is a foundation vision-language 
 
 Florence supports captioning, object detection, OCR, and more out of the box. However, your task might not be supported, or you might need to control the model's output for your task. That's when you will need to fine-tune the model.
 
-In this repository, we present code to fine tune Florence on [DocVQA](https://www.docvqa.org/) or [The Cauldron](https://huggingface.co/datasets/HuggingFaceM4/the_cauldron).
+In this repository, we present code to fine tune Florence on [DocVQA](https://www.docvqa.org/), [The Cauldron](https://huggingface.co/datasets/HuggingFaceM4/the_cauldron), or [Docmatix](https://huggingface.co/datasets/HuggingFaceM4/Docmatix).
 
 
 ## Installation
